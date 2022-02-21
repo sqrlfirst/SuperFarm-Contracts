@@ -465,11 +465,11 @@ describe("SuperFarm Marketplace", function(){
     it("Sell 2 different NFTs erc721 & erc1155 at one time", async function () {
         let salt = 1;
         let abi721 = ["function transferFrom(address from,address to,uint256 tokenId)"]
-        let abi155 = ["function safeTransferFrom(address from,address to,uint256 id,uint256 amount,bytes memory data)"]
+        let abi1155 = ["function safeTransferFrom(address from,address to,uint256 id,uint256 amount,bytes memory data)"]
         let iface = new ethers.utils.Interface(abi721)
         let iface2 = new ethers.utils.Interface(abi1155)
         let dataSell = iface.encodeFunctionData("transferFrom", [bob.address, utils.NULL_ADDRESS, 1])
-                     + iface2.encodeFunctionData("safeTransferFrom", [bob.address, utils.NULL_ADDRESS, ]);
+                     + iface2.encodeFunctionData("safeTransferFrom", [bob.address, utils.NULL_ADDRESS, utils.mint.erc1155.bob.id, utils.mint.erc1155.bob.amount, utils.mint.erc1155.bob.data]);
         
         let time = await utils.getCurrentTime()
         let orderSell = utils.makeOrder(
