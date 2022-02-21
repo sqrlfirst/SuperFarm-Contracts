@@ -462,7 +462,95 @@ describe("SuperFarm Marketplace", function(){
     });
 
     // TODO later 
-    // t("Sell 2 different erc721 at one time", async function () {});
+    it("Sell 2 different NFTs erc721 & erc1155 at one time", async function () {
+        let salt = 1;
+        let abi721 = ["function transferFrom(address from,address to,uint256 tokenId)"]
+        let abi155 = ["function safeTransferFrom(address from,address to,uint256 id,uint256 amount,bytes memory data)"]
+        let iface = new ethers.utils.Interface(abi721)
+        let iface2 = new ethers.utils.Interface(abi1155)
+        let dataSell = iface.encodeFunctionData("transferFrom", [bob.address, utils.NULL_ADDRESS, 1])
+                     + iface2.encodeFunctionData("safeTransferFrom", [bob.address, utils.NULL_ADDRESS, ]);
+        
+        let time = await utils.getCurrentTime()
+        let orderSell = utils.makeOrder(
+            ethers.utils.parseEther("1"),
+            [],
+            time, 
+            time + 100, 
+            salt, 
+            [200, 300, 400], // 100 = 1% in basis points
+            [(dataSell.length-2)/2], // Check that works 
+            [creator.address, royaltyOwner1.address, royaltyOwner2.address],
+            marketplace.address, 
+            bob.address, // Seller
+            1, 
+            utils.NULL_ADDRESS, 
+            0, 
+            [0],
+            [erc721.address], 
+            utils.NULL_ADDRESS, 
+            weth.address, 
+            dataSell, 
+            utils.replacementPatternSell, 
+            0x0 
+        )
+        salt++
+        let dataBuy = iface.encodeFunctionData("transferFrom", [utils.NULL_ADDRESS, alice.address, 1]);
+        let orderBuy = utils.makeOrder(
+            ethers.utils.parseEther("1.5"),
+            [],
+            await utils.getCurrentTime(), 
+            await utils.getCurrentTime() + 100, 
+            salt, 
+            [], 
+            [(dataBuy.length-2)/2],
+            [], 
+            marketplace.address, 
+            alice.address, // Buyer
+            0, 
+            utils.NULL_ADDRESS, 
+            0, 
+            [0],
+            [erc721.address], 
+            utils.NULL_ADDRESS, 
+            weth.address, 
+            dataBuy, 
+            utils.replacementPatternBuy, 
+            0x0 
+        );
+        // Sign Orders
+        let signatureSell = await bob._signTypedData(domain, utils.OrderType, orderSell);
+        let signatureBuy = await alice._signTypedData(domain, utils.OrderType, orderBuy);
+
+        // Get V, R, S
+        let sigSell = ethers.utils.splitSignature(signatureSell);
+        let sigBuy = ethers.utils.splitSignature(signatureBuy);
+
+        // Approve corresponding proxy
+        let proxy = await registry.proxies(bob.address)
+        await erc721.connect(bob).approve(proxy, 1)
+        await weth.connect(alice).approve(transferProxy.address, ethers.utils.parseEther("1"))
+
+        console.log((await weth.balanceOf(alice.address)).toString(), "  alice")
+
+        // BOOM ! Atomic Match
+        await marketplace.connect(alice).atomicMatch_(orderBuy, sigBuy, orderSell, sigSell, [], [])
+        
+        // Confirm NFT transfers
+        expect(await erc721.balanceOf(alice.address)).to.be.eq("2")
+        expect(await erc721.balanceOf(bob.address)).to.be.eq("0")
+        
+        // Confirm Price Token Transfer
+        expect(await weth.balanceOf(bob.address)).to.be.eq(ethers.utils.parseEther("100.89"))
+        expect(await weth.balanceOf(alice.address)).to.be.eq(ethers.utils.parseEther("9"))
+
+        // Confirm fee tranfers
+        expect(await weth.balanceOf(platformFeeRecipient.address)).to.be.eq(ethers.utils.parseEther("0.01"))
+        expect(await weth.balanceOf(creator.address)).to.be.eq(ethers.utils.parseEther("0.02"))
+        expect(await weth.balanceOf(royaltyOwner1.address)).to.be.eq(ethers.utils.parseEther("0.03"))
+        expect(await weth.balanceOf(royaltyOwner2.address)).to.be.eq(ethers.utils.parseEther("0.04"))
+    });
+
     // t("Buy 2 different erc721 at one time", async function () {});
     // t("Revert if orders are not fullfilled 2 different erc721 at one time", async function () {});
 });

@@ -44,7 +44,7 @@ abstract contract ExchangeCore is ReentrancyGuard, EIP712, PermitControl {
     Fees fees;
 
     /** Trusted proxy registry contracts. */
-    mapping(address => bool) public registries;
+    mapping(address => bool) public registries;             // CHECK not used in contract 
 
     /** Cancelled / finalized orders, by hash. */
     mapping(bytes32 => bool) public cancelledOrFinalized;
